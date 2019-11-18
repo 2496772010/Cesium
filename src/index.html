@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>城市内涝监测与预警</title>
+    <style>
+        @import url(../node_modules/Cesium/Build/Cesium/Widgets/widgets.css);
+
+        html, body, #cesiumContainer {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        #funBar {
+            position: absolute;
+            width: 100px;
+            height: 100%;
+            z-index: 99
+        }
+
+        #qxContent {
+            position: absolute;
+        }
+
+        .layui-colla-content {
+            position: absolute;
+            left: 100px;
+            top: 0px;
+            width: 300px;
+            height: 608px;
+            background-color: #f2f2f2;
+            border: 3px black;
+            border-radius: 2px;
+        }
+    </style>
+    <link rel="stylesheet" href="js/layui/css/layui.css" media="all">
+    <!--    Cesium-->
+    <script src="../node_modules/cesium/Build/Cesium/Cesium.js"></script>
+    <!--    layui-->
+    <script src="js/layui/layui.all.js"></script>
+    <!--    jquery-->
+    <script src="../node_modules/jquery/dist/jquery.js"></script>
+    <script src="index.js"></script>
+    <script src="../node_modules/kriging/src/kriging.js"></script>
+
+
+</head>
+<body>
+<div id="cesiumContainer">
+    <div id="funBar">
+        <div class="layui-collapse" lay-accordion>
+            <div class="layui-colla-item">
+                <h2 class="layui-colla-title">预警</h2>
+                <div class="layui-colla-content ">
+                    <button id="drawWaterPolygon" class="layui-btn layui-btn-normal">绘制淹没范围</button>
+                    <button class="layui-btn layui-btn-warm">清除效果</button>
+                    </br>
+                    <div class="layui-form"><label class="layui-form-label">最小高度:</label>
+                        <input id="minHeight" type="number"
+                               value="200"
+                               class="layui-input"
+                               style="width: 80px">
+                    </div>
+
+                    <div class="layui-form"><label class="layui-form-label">最大高度:</label>
+                        <input type="number"
+                               id="maxHeight"
+                               value="3000"
+                               class="layui-input"
+                               style="width: 80px">
+                    </div>
+                    </br>
+                    <div class="layui-form"><label class="layui-form-label">上涨间隔:</label>
+                        <input type="number"
+                               id="ymStep"
+                               value="1"
+                               class="layui-input"
+                               style="width: 80px">
+                    </div>
+
+                    <div class="layui-form"><label class="layui-form-label">淹没速度:</label>
+                        <input type="number"
+                               id="ymSpeed"
+                               value="0.05"
+                               class="layui-input"
+                               style="width: 80px">
+                    </div>
+                    </br>
+                        <label >淹没面积：</label><div id="ymArea" style="width: 80px;height: 30px">1</div>
+
+                </br>
+                    <button id="ymStartbtn" class="layui-btn layui-btn-normal">开始</button>
+                </div>
+            </div>
+            <div class="layui-colla-item">
+                <h2 class="layui-colla-title">气象</h2>
+                <div id="qxContent" class="layui-colla-content ">内容区域</div>
+            </div>
+            <div class="layui-colla-item">
+                <h2 class="layui-colla-title">降雨</h2>
+                <div class="layui-colla-content ">
+                    <input class="layui-input"></input>
+                    <button id="sxRainfallbtn" class="layui-btn layui-btn-normal">实时雨量</button>
+                    <button id="rainfallAnalysisbtn" class="layui-btn layui-btn-normal">雨量分析</button>
+                    </br></br>
+                    <div class="layui-form" id="drawType">
+                        <select id="type" lay-filter="type">
+                            <option value="polygon">面</option>
+                            <option value="circle">圆</option>
+                            <option value="rectangle">矩形</option>
+                        </select>
+                    </div>
+                    <table id="rainTable"></table>
+                </div>
+            </div>
+            <div class="layui-colla-item">
+                <h2 class="layui-colla-title">河道</h2>
+                <div class="layui-colla-content ">
+                    <div class="layui-form" id="riverName">
+                        <select id="rivers" lay-filter="rivers">
+                            <option>湘水</option>
+                            <option>贝岭水</option>
+                            <option>东江</option>
+                            <option>马蹄河</option>
+                            <option>篁乡河</option>
+                        </select></div>
+                    <button id="startFlybtn" disabled='disabled' class="layui-btn layui-btn-disabled">开始飞行</button>
+                    <button id="endFlybtn" disabled="disabled" class="layui-btn layui-btn-disabled">退出飞行</button>
+                    </br>
+                    <button id="drawLine" class="layui-btn layui-btn-normal">绘制路线</button>
+                    <div class="layui-form">
+                      <label>模型开关:</label>  <input lay-filter="modelSwitch" type="checkbox" name="yyy" lay-skin="switch" lay-text="ON|OFF" checked>
+                    </div>
+
+                </div>
+            </div>
+            <div class="layui-colla-item">
+                <h2 class="layui-colla-title">水库</h2>
+                <div class="layui-colla-content ">内容区域</div>
+            </div>
+
+        </div>
+        <button id="removeAll" class="layui-btn layui-btn-warm">清除所有</button>
+    </div>
+</div>
+
+    <script>
+        layui.use ( ['layer', 'form', 'element', 'table'], function () {
+            var layer = layui.layer
+                , form = layui.form
+                , element = layui.element
+                , table = layui.table;
+            form.render ();
+            element.render ();
+            // table.render ( {
+            //     elem: '#rainTable',
+            //     height: 300,
+            //     url: 'http://localhost:8081/geoserver/Cesium/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=Cesium:rainfall_stations&outputFormat=application%2Fjson',
+            //     method: "get",
+            //     parseData: function (res) {
+            //         let data = [];
+            //         for (let i = 0; i < res.features.length; i ++) {
+            //             data.push ( res.features[i].properties )
+            //         }
+            //         return {
+            //             'code': 0,
+            //             'msg': '',
+            //             'count': 1000,
+            //             'data': data
+            //         }
+            //     },
+            //     page: true,
+            //     cols: [[
+            //         {field: 'STNM', title: '站名', width: 60},
+            //         {field: 'Z', title: '雨量', width: 80},
+            //         {field: '所在乡镇、', title: '所在乡镇', width: 140}
+            //     ]]
+            // } )
+        } );
+    </script>
+</body>
+</html>
