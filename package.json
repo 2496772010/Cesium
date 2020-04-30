@@ -1,7 +1,7 @@
 {
   "dependencies": {
     "cesium": "^1.63.1",
-    "jquery": "^3.4.1",
+    "jquery": "^3.5.0",
     "kriging": "^0.1.12",
     "layui": "^0.0.1",
     "layui-src": "^2.5.5"
